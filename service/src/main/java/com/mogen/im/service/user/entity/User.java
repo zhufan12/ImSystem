@@ -1,0 +1,66 @@
+package com.mogen.im.service.user.entity;
+
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.mogen.im.common.enums.AllowFriendTypeEnum;
+import com.mogen.im.common.enums.DelFlagEnum;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.Where;
+
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Entity
+@SQLDelete(sql = "update `im-user` set del_flag = 1 where id = ?")
+@Where(clause = "del_flag != 1")
+@Table(name = "im-user")
+public class User {
+
+    // 用户id
+    @Id
+    @GeneratedValue(strategy= GenerationType.IDENTITY)
+    private Integer id;
+
+    @Column
+    @JsonProperty(value = "user_pid")
+    private String userPid;
+
+    @Column
+    private String nickName;
+
+    @Column
+    private String password;
+
+    @Column
+    private Integer userSex;
+
+    @Column
+    private String selfSignature;
+
+    @Column
+    @Enumerated
+    private AllowFriendTypeEnum friendAllowType;
+
+    @Column
+    private Integer disableAddFriend;
+
+    @Column
+    private Integer forbiddenFlag;
+
+    @Column
+    private Integer silentFlag;
+    @Column
+    private Integer userType;
+    @Column
+    private Integer appId;
+    @Column
+    @Embedded
+    private DelFlagEnum delFlag;
+    @Column
+    private String extra;
+}
