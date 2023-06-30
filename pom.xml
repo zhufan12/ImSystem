@@ -32,7 +32,6 @@
 
     <dependencyManagement>
         <dependencies>
-            <!-- protostuff依赖包 begin -->
             <dependency>
                 <groupId>com.dyuproject.protostuff</groupId>
                 <artifactId>protostuff-api</artifactId>
@@ -48,7 +47,6 @@
                 <artifactId>protostuff-runtime</artifactId>
                 <version>${protostuff-api}</version>
             </dependency>
-            <!-- protostuff依赖包 end -->
 
             <!-- commons -->
             <dependency>
@@ -88,7 +86,6 @@
             <!--                <version>${mybatis-plus.version}</version>-->
             <!--            </dependency>-->
 
-            <!-- 参数校验 -->
             <dependency>
                 <groupId>org.hibernate</groupId>
                 <artifactId>hibernate-validator</artifactId>
