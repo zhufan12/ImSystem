@@ -1,11 +1,17 @@
 package com.mogen.im.service.friendship.service.impl;
 
+import com.mogen.im.codec.pack.friend.*;
 import com.mogen.im.common.ResponseVo;
-import com.mogen.im.common.enums.AllowFriendTypeEnum;
-import com.mogen.im.common.enums.CheckFriendShipTypeEnum;
+import com.mogen.im.common.constants.Constants;
+import com.mogen.im.common.enums.AllowFriendType;
+import com.mogen.im.common.enums.CheckFriendShipType;
 import com.mogen.im.common.enums.FriendShipErrorCode;
-import com.mogen.im.common.enums.FriendShipStatusEnum;
+import com.mogen.im.common.enums.FriendShipStatus;
+import com.mogen.im.common.enums.action.FriendshipEventAction;
 import com.mogen.im.common.exception.ApplicationException;
+import com.mogen.im.common.model.RequestBase;
+import com.mogen.im.common.model.SyncReq;
+import com.mogen.im.common.model.SyncResp;
 import com.mogen.im.common.utils.BeanUtils;
 import com.mogen.im.service.friendship.entity.FriendShip;
 import com.mogen.im.service.friendship.entity.FriendShipId;
@@ -15,8 +21,12 @@ import com.mogen.im.service.friendship.model.resp.ImportFriendShipResp;
 import com.mogen.im.service.friendship.repository.FriendShipRepository;
 import com.mogen.im.service.friendship.service.FriendShipRequestService;
 import com.mogen.im.service.friendship.service.FriendShipService;
+import com.mogen.im.service.seq.RedisSeq;
 import com.mogen.im.service.user.entity.User;
 import com.mogen.im.service.user.service.UserService;
+import com.mogen.im.service.utils.MessageProducer;
+import com.mogen.im.service.utils.UserSessionUtils;
+import com.mogen.im.service.utils.WriteUserSeq;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +50,16 @@ public class FriendShipServiceImpl implements FriendShipService {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private MessageProducer messageProducer;
+
+    @Autowired
+    private RedisSeq redisSeq;
+
+
+    @Autowired
+    private WriteUserSeq writeUserSeq;
 
     @Override
     public ResponseVo importFriendShip(ImportFriendShipReq req) {
@@ -86,8 +106,8 @@ public class FriendShipServiceImpl implements FriendShipService {
             return toUser;
         }
         User user = (User)toUser.getData();
-        if(user.getFriendAllowType() != null && user.getFriendAllowType().equals(AllowFriendTypeEnum.NOT_NEED)){
-            return doAddFriendShip(addFriendReq.getFromId(),addFriendReq.getToItem(),addFriendReq.getAppId());
+        if(user.getFriendAllowType() != null && user.getFriendAllowType().equals(AllowFriendType.NOT_NEED)){
+            return doAddFriendShip(addFriendReq,addFriendReq.getFromId(),addFriendReq.getToItem(),addFriendReq.getAppId());
         }
         ResponseVo responseVo = friendShipRequestService.addFriendShipRequest(addFriendReq.getFromId(),addFriendReq.getToItem(),addFriendReq.getAppId());
         if(!responseVo.isOk()){
@@ -99,37 +119,44 @@ public class FriendShipServiceImpl implements FriendShipService {
 
 
     @Transactional
-    public ResponseVo doAddFriendShip(String formId, FriendDto friendDto,Integer appId){
+    public ResponseVo doAddFriendShip(RequestBase requestBase, String formId, FriendDto friendDto, Integer appId){
 
         FriendShipId friendShipId = new FriendShipId();
         friendShipId.setAppId(appId);
         friendShipId.setFromId(formId);
         friendShipId.setToId(friendDto.getToId());
         Optional<FriendShip> friendShip = repository.findById(friendShipId);
-
+        FriendShip fromItem = new FriendShip();
+        FriendShip toItem = new FriendShip();
+        long seq = 0L;
         if(!friendShip.isPresent()){
-            FriendShip fromItem = new FriendShip();
             BeanUtils.copyPropertiesIgnoreNull(friendDto,fromItem);
+            seq = redisSeq.doGetSeq(appId + ":" + Constants.SeqConstants.Friendship);
+            fromItem.setFriendSequence(seq);
             fromItem.setAppId(appId);
             fromItem.setFromId(formId);
             fromItem.setToId(friendDto.getToId());
-            fromItem.setStatus(FriendShipStatusEnum.FRIEND_STATUS_NORMAL);
+            fromItem.setStatus(FriendShipStatus.FRIEND_STATUS_NORMAL);
             FriendShip insert =  repository.save(fromItem);
             if(insert == null){
                 return ResponseVo.errorResponse(ADD_FRIEND_ERROR);
             }
+            writeUserSeq.writeUserSeq(appId,formId,Constants.SeqConstants.Friendship,seq);
         }else{
-            if(friendShip.get().getStatus().equals(FriendShipStatusEnum.FRIEND_STATUS_NORMAL)){
+            if(friendShip.get().getStatus().equals(FriendShipStatus.FRIEND_STATUS_NORMAL)){
                 return ResponseVo.errorResponse(TO_IS_YOUR_FRIEND);
             }
 
-            if(friendShip.get().getStatus().equals(FriendShipStatusEnum.FRIEND_STATUS_DELETE)){
+            if(friendShip.get().getStatus().equals(FriendShipStatus.FRIEND_STATUS_DELETE)){
                 BeanUtils.copyPropertiesIgnoreNull(friendDto,friendShip.get());
-                friendShip.get().setStatus(FriendShipStatusEnum.FRIEND_STATUS_NORMAL);
-                FriendShip updateEntity = repository.save(friendShip.get());
-                if(updateEntity == null){
+                friendShip.get().setStatus(FriendShipStatus.FRIEND_STATUS_NORMAL);
+                seq = redisSeq.doGetSeq(appId + ":" + Constants.SeqConstants.Friendship);
+                friendShip.get().setFriendSequence(seq);
+                fromItem = repository.save(friendShip.get());
+                if(fromItem == null){
                     return ResponseVo.errorResponse(ADD_FRIEND_ERROR);
                 }
+                writeUserSeq.writeUserSeq(appId,formId,Constants.SeqConstants.Friendship,seq);
             }
         }
 
@@ -139,38 +166,57 @@ public class FriendShipServiceImpl implements FriendShipService {
         Optional<FriendShip> toItemEntity = repository.findById(friendShipId);
 
         if(!toItemEntity.isPresent()){
-            FriendShip fromItem = new FriendShip();
-            BeanUtils.copyPropertiesIgnoreNull(friendDto,fromItem);
-            fromItem.setAppId(appId);
-            fromItem.setFromId(friendDto.getToId());
-            fromItem.setToId(formId);
-            fromItem.setStatus(FriendShipStatusEnum.FRIEND_STATUS_NORMAL);
-            FriendShip insert =  repository.save(fromItem);
+            BeanUtils.copyPropertiesIgnoreNull(friendDto,toItem);
+            toItem.setAppId(appId);
+            toItem.setFromId(friendDto.getToId());
+            toItem.setToId(formId);
+            seq = redisSeq.doGetSeq(appId + ":" + Constants.SeqConstants.Friendship);
+            toItem.setFriendSequence(seq);
+            toItem.setStatus(FriendShipStatus.FRIEND_STATUS_NORMAL);
+            FriendShip insert =  repository.save(toItem);
             if(insert == null){
                 return ResponseVo.errorResponse(ADD_FRIEND_ERROR);
             }
+            writeUserSeq.writeUserSeq(appId,formId,Constants.SeqConstants.Friendship,seq);
+
             return ResponseVo.successResponse();
         }
 
-        if(toItemEntity.get().getStatus().equals(FriendShipStatusEnum.FRIEND_STATUS_NORMAL)){
-            return ResponseVo.errorResponse(TO_IS_YOUR_FRIEND);
+        if(toItemEntity.get().getStatus().equals(FriendShipStatus.FRIEND_STATUS_NORMAL)){
+                return ResponseVo.errorResponse(TO_IS_YOUR_FRIEND);
         }
 
-        if(toItemEntity.get().getStatus().equals(FriendShipStatusEnum.FRIEND_STATUS_DELETE)){
+        if(toItemEntity.get().getStatus().equals(FriendShipStatus.FRIEND_STATUS_DELETE)){
             BeanUtils.copyPropertiesIgnoreNull(friendDto,toItemEntity.get());
-            friendShip.get().setStatus(FriendShipStatusEnum.FRIEND_STATUS_NORMAL);
-            FriendShip updateEntity = repository.save(toItemEntity.get());
-            if(updateEntity == null){
+            friendShip.get().setStatus(FriendShipStatus.FRIEND_STATUS_NORMAL);
+            seq = redisSeq.doGetSeq(appId + ":" + Constants.SeqConstants.Friendship);
+            friendShip.get().setFriendSequence(seq);
+            toItem = repository.save(toItemEntity.get());
+            if(toItem == null){
                 return ResponseVo.errorResponse(ADD_FRIEND_ERROR);
             }
+            writeUserSeq.writeUserSeq(appId,formId,Constants.SeqConstants.Friendship,seq);
         }
+
+        AddFriendPack addFriendPack = new AddFriendPack();
+        BeanUtils.copyPropertiesIgnoreNull(fromItem,addFriendPack);
+        addFriendPack.setSequence(seq);
+        messageProducer.sendToUser(formId,requestBase.getClientType(),
+                requestBase.getImei(), requestBase.getAppId(),
+                FriendshipEventAction.FRIEND_ADD,addFriendPack);
+
+        AddFriendPack addFriendToPack = new AddFriendPack();
+        BeanUtils.copyPropertiesIgnoreNull(toItem,addFriendToPack);
+        addFriendPack.setSequence(seq);
+        messageProducer.sendToUser(toItem.getFromId(),
+                FriendshipEventAction.FRIEND_ADD,addFriendToPack,requestBase.getAppId());
 
         return ResponseVo.successResponse();
     }
 
 
     @Override
-    public ResponseVo updateFriend(UpdateFriendReq req) {
+    public ResponseVo updateFriend(UpdateFriendReq req){
         ResponseVo fromUser = userService.getSingleUserInfo(req.getFromId(),req.getAppId());
         if(!fromUser.isOk()){
             return fromUser;
@@ -182,14 +228,23 @@ public class FriendShipServiceImpl implements FriendShipService {
 
         FriendShipId friendShipId = FriendShipId.builder().appId(req.getAppId())
                 .fromId(req.getFromId()).toId(req.getToItem().getToId()).build();
-
-        return doUpdate(friendShipId,req.getToItem());
+        ResponseVo<Long> responseVo = this.doUpdate(friendShipId,req.getToItem());
+        if (responseVo.isOk()){
+            UpdateFriendPack updateFriendPack = new UpdateFriendPack();
+            updateFriendPack.setRemark(req.getToItem().getRemark());
+            updateFriendPack.setToId(req.getToItem().getToId());
+            updateFriendPack.setSequence(responseVo.getData());
+            messageProducer.sendToUser(req.getFromId(),req.getClientType(),req.getImei(),req.getAppId(),
+                    FriendshipEventAction.FRIEND_UPDATE,req.getAppId());
+        }
+        return responseVo;
 
     }
 
 
     @Transactional
     public ResponseVo doUpdate(FriendShipId friendShipId,FriendDto friendDto){
+        long seq = redisSeq.doGetSeq(friendShipId.getAppId() + ":" + Constants.SeqConstants.Friendship);
         Optional<FriendShip> friendShipOptional = repository.findById(friendShipId);
         if(!friendShipOptional.isPresent()){
             return ResponseVo.successResponse(REPEATSHIP_IS_NOT_EXIST);
@@ -197,11 +252,13 @@ public class FriendShipServiceImpl implements FriendShipService {
         friendShipOptional.get().setAddSource(friendDto.getAddSource());
         friendShipOptional.get().setRemark(friendDto.getRemark());
         friendShipOptional.get().setExtra(friendDto.getExtra());
+        friendShipOptional.get().setFriendSequence(seq);
         FriendShip friendShip = repository.save(friendShipOptional.get());
         if(friendShip == null){
             return ResponseVo.errorResponse();
         }
-        return ResponseVo.successResponse();
+        writeUserSeq.writeUserSeq(friendShipId.getAppId(),friendShipId.getFromId(),Constants.SeqConstants.Friendship,seq);
+        return ResponseVo.successResponse(seq);
     }
 
     @Override
@@ -215,19 +272,33 @@ public class FriendShipServiceImpl implements FriendShipService {
             return ResponseVo.errorResponse(TO_IS_NOT_YOUR_FRIEND);
         }
 
-        if(!friendShipOptional.get().getStatus().equals(FriendShipStatusEnum.FRIEND_STATUS_NORMAL)){
-            return  ResponseVo.errorResponse(FRIEND_IS_DELETED);
+        if(!friendShipOptional.get().getStatus().equals(FriendShipStatus.FRIEND_STATUS_NORMAL)){
+            return ResponseVo.errorResponse(FRIEND_IS_DELETED);
         }
-        repository.updateStatusById(FriendShipStatusEnum.FRIEND_STATUS_DELETE,friendShipId);
-
+        long seq = redisSeq.doGetSeq(friendShipId.getAppId() + ":" + Constants.SeqConstants.Friendship);
+        repository.updateStatusById(FriendShipStatus.FRIEND_STATUS_DELETE,friendShipId,seq);
+        DeleteFriendPack deleteFriendPack = new DeleteFriendPack();
+        deleteFriendPack.setToId(req.getToId());
+        deleteFriendPack.setFromId(req.getFromId());
+        deleteFriendPack.setSequence(seq);
+        messageProducer.sendToUser(req.getFromId(),req.getClientType(),req.getImei(),req.getAppId(),FriendshipEventAction.FRIEND_DELETE,
+                deleteFriendPack);
+        writeUserSeq.writeUserSeq(req.getAppId(),req.getFromId(),Constants.SeqConstants.Friendship,seq);
 
         return ResponseVo.successResponse();
 
     }
 
     @Override
-    public ResponseVo deleteAllFriend(DeleteFriendReq req) {
-        repository.updateStatusByStatusAndFromId(FriendShipStatusEnum.FRIEND_STATUS_DELETE,req.getFromId(),req.getAppId());
+    public ResponseVo deleteAllFriend(DeleteFriendReq req){
+        repository.updateStatusByStatusAndFromId(FriendShipStatus.FRIEND_STATUS_DELETE,req.getFromId(),req.getAppId());
+
+        DeleteAllFriendPack deleteAllFriendPack = new DeleteAllFriendPack();
+        deleteAllFriendPack.setFromId(req.getFromId());
+
+        messageProducer.sendToUser(req.getFromId(),req.getClientType(),req.getImei(),req.getAppId(),
+                FriendshipEventAction.FRIEND_ALL_DELETE,deleteAllFriendPack);
+
         return ResponseVo.successResponse();
     }
 
@@ -257,7 +328,7 @@ public class FriendShipServiceImpl implements FriendShipService {
     @Override
     public ResponseVo checkFriendship(CheckFriendShipReq req) {
         List<CheckFriendShipResp> checkFriendShipResp = new ArrayList<>();
-        if(req.getCheckType().equals(CheckFriendShipTypeEnum.SINGLE)){
+        if(req.getCheckType().equals(CheckFriendShipType.SINGLE)){
             checkFriendShipResp = repository.checkSingleFriendShipByFromIdAndToIds(req.getFromId(),req.getAppId(),req.getToIds());
             return ResponseVo.successResponse(checkFriendShipResp);
         }
@@ -269,7 +340,7 @@ public class FriendShipServiceImpl implements FriendShipService {
 
     @Override
     @Transactional
-    public ResponseVo addBlack(FriendShipBlackReq req) {
+    public ResponseVo addBlack(FriendShipBlackReq req){
         ResponseVo fromUser = userService.getSingleUserInfo(req.getFromId(),req.getAppId());
         if(!fromUser.isOk()){
             return fromUser;
@@ -283,55 +354,103 @@ public class FriendShipServiceImpl implements FriendShipService {
         friendShipId.setFromId(req.getFromId());
         friendShipId.setAppId(req.getAppId());
         Optional<FriendShip> friendShipOptional = repository.findById(friendShipId);
+
+        AddFriendBlackPack addFriendBlackPack = new AddFriendBlackPack();
+        addFriendBlackPack.setFromId(req.getFromId());
+        addFriendBlackPack.setToId(req.getToId());
+        long seq = 0;
         if(!friendShipOptional.isPresent()){
+             seq = redisSeq.doGetSeq(req.getAppId() + ":" + Constants.SeqConstants.Friendship);
             FriendShip friendShipEntity = new FriendShip();
             friendShipEntity.setAppId(req.getAppId());
             friendShipEntity.setToId(req.getToId());
+            friendShipEntity.setFriendSequence(seq);
             friendShipEntity.setFromId(req.getFromId());
-            friendShipEntity.setStatus(FriendShipStatusEnum.FRIEND_STATUS_NORMAL);
-            friendShipEntity.setBlack(FriendShipStatusEnum.BLACK_STATUS_BLACKED);
+            friendShipEntity.setStatus(FriendShipStatus.FRIEND_STATUS_NORMAL);
+            friendShipEntity.setBlack(FriendShipStatus.BLACK_STATUS_BLACKED);
             FriendShip insert = repository.save(friendShipEntity);
             if(insert == null){
                 return ResponseVo.errorResponse(ADD_FRIEND_ERROR);
             }
+            writeUserSeq.writeUserSeq(req.getAppId(),req.getFromId(),Constants.SeqConstants.Friendship,seq);
+            addFriendBlackPack.setSequence(seq);
+            messageProducer.sendToUser(req.getFromId(),req.getClientType(),req.getImei(),req.getAppId(),
+                    FriendshipEventAction.FRIEND_BLACK_ADD,addFriendBlackPack);
             return  ResponseVo.successResponse();
         }
 
-        if(friendShipOptional.get().getBlack().equals(FriendShipStatusEnum.BLACK_STATUS_BLACKED)){
+        if(friendShipOptional.get().getBlack().equals(FriendShipStatus.BLACK_STATUS_BLACKED)){
             return ResponseVo.errorResponse(FRIEND_IS_BLACK);
         }
 
-        int update =  repository.updateBlackById(FriendShipStatusEnum.BLACK_STATUS_BLACKED,friendShipId);
+        seq = redisSeq.doGetSeq(req.getAppId() + ":" + Constants.SeqConstants.Friendship);
+        int update =  repository.updateBlackById(FriendShipStatus.BLACK_STATUS_BLACKED,friendShipId,seq);
         if(update == 0){
             return ResponseVo.errorResponse(ADD_FRIEND_ERROR);
         }
+        writeUserSeq.writeUserSeq(req.getAppId(),req.getFromId(),Constants.SeqConstants.Friendship,seq);
+        addFriendBlackPack.setSequence(seq);
+        messageProducer.sendToUser(req.getFromId(),req.getClientType(),req.getImei(),req.getAppId(),
+                FriendshipEventAction.FRIEND_BLACK_ADD,addFriendBlackPack);
         return ResponseVo.successResponse();
     }
 
     @Override
     @Transactional
-    public ResponseVo deleteBlack(FriendShipBlackReq req) {
+    public ResponseVo deleteBlack(FriendShipBlackReq req){
+        long seq = redisSeq.doGetSeq(req.getAppId() + ":" + Constants.SeqConstants.Friendship);
         FriendShipId friendShipId = new FriendShipId();
         friendShipId.setToId(req.getToId());
         friendShipId.setFromId(req.getFromId());
         friendShipId.setAppId(req.getAppId());
         FriendShip friendShip= repository.findById(friendShipId).get();
-        if(friendShip.getStatus().equals(FriendShipStatusEnum.BLACK_STATUS_NORMAL)){
+        if(friendShip.getStatus().equals(FriendShipStatus.BLACK_STATUS_NORMAL)){
             throw new ApplicationException(FRIEND_IS_NOT_YOUR_BLACK);
         }
-        repository.updateStatusById(FriendShipStatusEnum.BLACK_STATUS_NORMAL,friendShipId);
+        int update = repository.updateStatusById(FriendShipStatus.BLACK_STATUS_NORMAL,friendShipId,seq);
+        if(update == 0){
+            return ResponseVo.errorResponse(DELETE_BLACK_ERROR);
+        }
+        writeUserSeq.writeUserSeq(req.getAppId(),req.getFromId(),Constants.SeqConstants.Friendship,seq);
+        DeleteBlackPack deleteBlackPack = new DeleteBlackPack();
+        deleteBlackPack.setSequence(seq);
+        deleteBlackPack.setFromId(req.getFromId());
+        deleteBlackPack.setToId(req.getToId());
+        messageProducer.sendToUser(req.getFromId(),req.getClientType(),req.getImei(),req.getAppId(),
+                FriendshipEventAction.FRIEND_DELETE,deleteBlackPack);
         return ResponseVo.successResponse();
     }
 
     @Override
     public ResponseVo checkBlack(CheckFriendShipReq req) {
         List<CheckFriendShipResp> checkFriendShipResp = new ArrayList<>();
-        if(req.getCheckType().equals(CheckFriendShipTypeEnum.SINGLE)){
+        if(req.getCheckType().equals(CheckFriendShipType.SINGLE)){
             checkFriendShipResp = repository.checkSingleFriendShipBlackByFromIdAndToIds(req.getFromId(),req.getAppId(),req.getToIds());
             return ResponseVo.successResponse(checkFriendShipResp);
         }
 
         checkFriendShipResp = repository.checkBothFriendShipBlackByFromIdAndToIds(req.getFromId(),req.getAppId(),req.getToIds());
         return ResponseVo.successResponse(checkFriendShipResp);
+    }
+
+
+    @Override
+    public ResponseVo syncFriendshipList(SyncReq syncReq) {
+        if(syncReq.getMaxLimit()  > 100){
+            syncReq.setMaxLimit(100);
+        }
+
+        SyncResp<FriendShip> friendShipSyncResp = new SyncResp<>();
+        List<FriendShip> friendShips = repository.findBySeqAndLimit(syncReq.getOperator(),syncReq.getAppId(),syncReq.getLastSequence(),syncReq.getMaxLimit());
+        if (friendShips != null && !friendShips.isEmpty()){
+            FriendShip maxFriendShip = friendShips.get(friendShips.size() -1);
+            friendShipSyncResp.setDataList(friendShips);
+            Long maxSeq = repository.findMaxSeqByFromIdAndAppId(syncReq.getOperator(),syncReq.getAppId());
+            BeanUtils.copyPropertiesIgnoreNull(syncReq,friendShipSyncResp);
+            friendShipSyncResp.setMaxSequence(maxSeq);
+            friendShipSyncResp.setCompleted(maxFriendShip.getFriendSequence() >= maxSeq);
+            return ResponseVo.successResponse(friendShipSyncResp);
+        }
+        return ResponseVo.successResponse();
     }
 }

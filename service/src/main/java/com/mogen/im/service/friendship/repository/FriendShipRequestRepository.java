@@ -16,11 +16,11 @@ public interface FriendShipRequestRepository extends JpaRepository<FriendShipReq
 
     List<FriendShipRequest> findByAppIdAndToId(Integer appId, String fromId);
 
-    @Query("UPDATE FriendShipRequest SET approveStatus = :approveStatus WHERE id = :id ")
+    @Query("UPDATE FriendShipRequest SET approveStatus = :approveStatus,sequence = :seq WHERE id = :id ")
     @Modifying
-    int updateApproveStatusById(Integer approveStatus,Integer id);
+    int updateApproveStatusById(Integer approveStatus,Integer id,long seq);
 
     @Query("UPDATE FriendShipRequest SET readStatus = :status WHERE toId = :toId AND  appId = :appId ")
     @Modifying
-    int updateReadStatusByToIdAndAppId(Integer status,String toId,Integer appId);
+    int updateReadStatusByToIdAndAppId(Integer status,String toId,Integer appId,long seq);
 }

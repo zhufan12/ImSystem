@@ -1,6 +1,6 @@
 package com.mogen.im.service.friendship.model.req;
 
-import com.mogen.im.common.enums.CheckFriendShipTypeEnum;
+import com.mogen.im.common.enums.CheckFriendShipType;
 import com.mogen.im.common.model.RequestBase;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -19,5 +19,5 @@ public class CheckFriendShipReq extends RequestBase {
     private List<String> toIds;
 
     @NotNull(message = "checkType can't not be null")
-    private CheckFriendShipTypeEnum checkType;
+    private CheckFriendShipType checkType;
 }

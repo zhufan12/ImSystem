@@ -1,14 +1,25 @@
 package com.mogen.im.service.user.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mogen.im.codec.pack.user.UserModifyPack;
 import com.mogen.im.common.ResponseVo;
+import com.mogen.im.common.config.AppConfig;
+import com.mogen.im.common.constants.Constants;
+import com.mogen.im.common.enums.action.SystemAction;
+import com.mogen.im.common.enums.action.UserEventAction;
 import com.mogen.im.common.utils.BeanUtils;
 import com.mogen.im.service.friendship.model.resp.ImportFriendShipResp;
+import com.mogen.im.service.group.entity.Group;
+import com.mogen.im.service.group.service.GroupService;
 import com.mogen.im.service.user.entity.User;
 import com.mogen.im.service.user.model.req.*;
 import com.mogen.im.service.user.model.resp.GetUserInfoResp;
 import com.mogen.im.service.user.repository.UserRepository;
 import com.mogen.im.service.user.service.UserService;
+import com.mogen.im.service.utils.MessageProducer;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,10 +36,18 @@ import static com.mogen.im.common.enums.UserErrorCode.USER_IS_NOT_EXIST;
 @Service
 public class UserServiceImpl implements UserService {
 
-    public static final int MAX_IMPORT_USER = 100;
-
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private MessageProducer messageProducer;
+
+
+    @Autowired
+    private GroupService groupService;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     @Override
     public ResponseVo importUsers(ImportUserReq importUserReq) {
@@ -117,16 +136,23 @@ public class UserServiceImpl implements UserService {
         if(updateUser == null){
             return ResponseVo.errorResponse(MODIFY_USER_ERROR);
         }
+        UserModifyPack userModifyPack = new UserModifyPack();
+        BeanUtils.copyPropertiesIgnoreNull(req,userModifyPack);
+        messageProducer.sendToUser(req.getUserPid(),req.getClientType(),req.getImei(),req.getAppId()
+                ,UserEventAction.USER_MODIFY,userModifyPack);
         return ResponseVo.successResponse();
     }
 
     @Override
     public ResponseVo login(LoginReq req) {
-        return  null;
+        return  ResponseVo.successResponse();
     }
 
     @Override
     public ResponseVo getUserSequence(GetUserSequenceReq req) {
-        return null;
+        Map<Object, Object> map = stringRedisTemplate.opsForHash().entries(req.getAppId() + ":" + Constants.RedisConstants.SeqPrefix + ":" + req.getOperator());
+        Long groupSeq = groupService.getUserGroupMaxSeq(req.getOperator(),req.getAppId());
+        map.put(Constants.SeqConstants.Group,groupSeq);
+        return ResponseVo.successResponse(map);
     }
 }

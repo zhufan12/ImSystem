@@ -1,6 +1,10 @@
 package com.mogen.im.service.friendship.service.impl;
 
+import com.mogen.im.codec.pack.friend.AddFriendGroupMemberPack;
+import com.mogen.im.codec.pack.friend.DeleteFriendGroupMemberPack;
 import com.mogen.im.common.ResponseVo;
+import com.mogen.im.common.enums.action.FriendshipEventAction;
+import com.mogen.im.common.model.ClientInfo;
 import com.mogen.im.service.friendship.entity.FriendShipGroup;
 import com.mogen.im.service.friendship.entity.FriendShipGroupMember;
 import com.mogen.im.service.friendship.model.req.FriendShipGroupMemberReq;
@@ -9,6 +13,7 @@ import com.mogen.im.service.friendship.service.FriendShipGroupMemberService;
 import com.mogen.im.service.friendship.service.FriendShipGroupService;
 import com.mogen.im.service.user.entity.User;
 import com.mogen.im.service.user.service.UserService;
+import com.mogen.im.service.utils.MessageProducer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -30,6 +35,10 @@ public class FriendShipGroupMemberServiceImpl implements FriendShipGroupMemberSe
     @Autowired
     private UserService userService;
 
+    @Autowired
+    MessageProducer messageProducer;
+
+
     @Override
     public ResponseVo addGroupMember(FriendShipGroupMemberReq req) {
         ResponseVo group = friendShipGroupService.getGroup(req.getFromId(),req.getGroupName(),req.getAppId());
@@ -48,6 +57,12 @@ public class FriendShipGroupMemberServiceImpl implements FriendShipGroupMemberSe
                 }
             }
         }
+        AddFriendGroupMemberPack pack = new AddFriendGroupMemberPack();
+        pack.setFromId(req.getFromId());
+        pack.setGroupName(req.getGroupName());
+        pack.setToIds(successId);
+        messageProducer.sendToUserExceptClient(req.getFromId(), FriendshipEventAction.FRIEND_GROUP_MEMBER_ADD,
+                pack,new ClientInfo(req.getAppId(),req.getClientType(),req.getImei()));
         return ResponseVo.successResponse(successId);
     }
 
@@ -67,6 +82,12 @@ public class FriendShipGroupMemberServiceImpl implements FriendShipGroupMemberSe
                 int i = deleteGroupMember(friendShipGroup.getId(), req.getToIds());
                 if(i != -1){
                     successId.add(toId);
+                    DeleteFriendGroupMemberPack pack = new DeleteFriendGroupMemberPack();
+                    pack.setFromId(req.getFromId());
+                    pack.setGroupName(req.getGroupName());
+                    pack.setToIds(successId);
+                    messageProducer.sendToUser(req.getFromId(), FriendshipEventAction.FRIEND_GROUP_MEMBER_DELETE,
+                            pack,new ClientInfo(req.getAppId(),req.getClientType(),req.getImei()));
                 }
             }
         }

@@ -23,6 +23,8 @@ public enum FriendShipErrorCode implements ApplicationExceptionEnum {
 
     ADD_BLACK_ERROR(30009,"blacklisted failed"),
 
+    DELETE_BLACK_ERROR(30017,"delete black error"),
+
     FRIEND_IS_NOT_YOUR_BLACK(30010,"friend is move out the blacklist"),
 
     NOT_APPROVE_OTHER_MAN_REQUEST(30011,"could not approve other friend's request "),

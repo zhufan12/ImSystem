@@ -1,6 +1,6 @@
 package com.mogen.im.service.friendship.model.req;
 
-import com.mogen.im.common.enums.FriendShipStatusEnum;
+import com.mogen.im.common.enums.FriendShipStatus;
 import com.mogen.im.common.model.RequestBase;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -26,9 +26,9 @@ public class ImportFriendShipReq extends RequestBase {
 
         private String addSource;
 
-        private Integer status = FriendShipStatusEnum.FRIEND_STATUS_NO_FRIEND.ordinal();
+        private Integer status = FriendShipStatus.FRIEND_STATUS_NO_FRIEND.ordinal();
 
-        private Integer black = FriendShipStatusEnum.BLACK_STATUS_NORMAL.ordinal();
+        private Integer black = FriendShipStatus.BLACK_STATUS_NORMAL.ordinal();
     }
 
 

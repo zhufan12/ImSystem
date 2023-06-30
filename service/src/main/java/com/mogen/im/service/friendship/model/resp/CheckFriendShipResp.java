@@ -1,6 +1,6 @@
 package com.mogen.im.service.friendship.model.resp;
 
-import com.mogen.im.common.enums.FriendShipStatusEnum;
+import com.mogen.im.common.enums.FriendShipStatus;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -26,7 +26,7 @@ public class CheckFriendShipResp  implements Serializable {
         this.status = status;
     }
 
-    public CheckFriendShipResp(String fromId, String toId, FriendShipStatusEnum status) {
+    public CheckFriendShipResp(String fromId, String toId, FriendShipStatus status) {
         this.fromId = fromId;
         this.toId = toId;
         this.status = status.ordinal();

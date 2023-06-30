@@ -1,7 +1,10 @@
 package com.mogen.im.service.friendship.service;
 
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.mogen.im.common.ResponseVo;
+import com.mogen.im.common.model.RequestBase;
+import com.mogen.im.common.model.SyncReq;
 import com.mogen.im.service.friendship.model.req.*;
 
 public interface FriendShipService {
@@ -29,7 +32,8 @@ public interface FriendShipService {
 
     public ResponseVo checkBlack(CheckFriendShipReq req);
 
+    public ResponseVo doAddFriendShip(RequestBase requestBase, String formId, FriendDto friendDto, Integer appId);
 
-    public ResponseVo doAddFriendShip(String formId, FriendDto friendDto,Integer appId);
 
+    public ResponseVo syncFriendshipList(SyncReq syncReq);
 }

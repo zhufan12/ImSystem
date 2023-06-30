@@ -3,6 +3,7 @@ package com.mogen.im.service.group.service.impl;
 import com.mogen.im.common.ResponseVo;
 import com.mogen.im.common.enums.GroupErrorCode;
 import com.mogen.im.common.enums.GroupMemberRole;
+import com.mogen.im.common.enums.GroupMuteType;
 import com.mogen.im.common.enums.GroupStatus;
 import com.mogen.im.common.exception.ApplicationException;
 import com.mogen.im.common.utils.BeanUtils;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -313,7 +315,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
         if (!isOwner && !isManager) {
             throw new ApplicationException(GroupErrorCode.THIS_OPERATE_NEED_MANAGER_ROLE);
         }
-        //获取被操作的权限
+
         ResponseVo<GetRoleInGroupResp> roleInGroupOne = this.getRoleInGroupOne(req.getGroupId(), req.getMemberId(), req.getAppId());
         if (!roleInGroupOne.isOk()) {
             return roleInGroupOne;
@@ -333,5 +335,22 @@ public class GroupMemberServiceImpl implements GroupMemberService {
         }
         return ResponseVo.successResponse();
 
+    }
+
+    @Override
+    public List<String> getGroupMemberId(Integer groupId) {
+        return groupMemberRepository.findByGroupMemberByGroupId(groupId);
+    }
+
+    @Override
+    public List<GroupMember> getGroupManager(Integer groupId) {
+       return groupMemberRepository.findByGroupIdAndRoleIn(groupId,
+               Arrays.asList(GroupMemberRole.OWNER,GroupMemberRole.MANAGER));
+    }
+
+    @Override
+    public ResponseVo<List<Integer>> syncMemberJoinedGroup(String memberId, Integer appId) {
+        List<Integer> groupIds = groupMemberRepository.findGroupIdByMemberIdAndAppIdAndStatusNot(memberId,appId,GroupMemberRole.LEAVE);
+        return ResponseVo.successResponse(groupIds);
     }
 }

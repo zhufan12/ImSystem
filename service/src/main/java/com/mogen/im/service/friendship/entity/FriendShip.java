@@ -1,7 +1,7 @@
 package com.mogen.im.service.friendship.entity;
 
 
-import com.mogen.im.common.enums.FriendShipStatusEnum;
+import com.mogen.im.common.enums.FriendShipStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -34,19 +34,17 @@ public class FriendShip implements Serializable {
 
     @Column
     @Enumerated
-    private FriendShipStatusEnum status;
+    private FriendShipStatus status;
 
     @Column
     @Enumerated
-    private FriendShipStatusEnum black;
+    private FriendShipStatus black;
 
     @CreationTimestamp
     @Column(name = "create_time")
     private Long createTime;
     @Column
     private Long friendSequence;
-    @Column
-    private Long blackSequence;
     @Column
     private String addSource;
     @Column

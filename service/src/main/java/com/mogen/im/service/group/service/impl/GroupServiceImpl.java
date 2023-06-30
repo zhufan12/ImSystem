@@ -1,11 +1,15 @@
 package com.mogen.im.service.group.service.impl;
 
+import com.mogen.im.codec.pack.group.CreateGroupPack;
+import com.mogen.im.codec.pack.group.DestroyGroupPack;
+import com.mogen.im.codec.pack.group.UpdateGroupInfoPack;
 import com.mogen.im.common.ResponseVo;
-import com.mogen.im.common.enums.GroupErrorCode;
-import com.mogen.im.common.enums.GroupMemberRole;
-import com.mogen.im.common.enums.GroupStatus;
-import com.mogen.im.common.enums.GroupType;
+import com.mogen.im.common.constants.Constants;
+import com.mogen.im.common.enums.*;
 import com.mogen.im.common.exception.ApplicationException;
+import com.mogen.im.common.model.ClientInfo;
+import com.mogen.im.common.model.SyncReq;
+import com.mogen.im.common.model.SyncResp;
 import com.mogen.im.common.utils.BeanUtils;
 import com.mogen.im.service.group.entity.Group;
 import com.mogen.im.service.group.modle.req.*;
@@ -13,7 +17,9 @@ import com.mogen.im.service.group.modle.resp.GetRoleInGroupResp;
 import com.mogen.im.service.group.repostiory.GroupRepository;
 import com.mogen.im.service.group.service.GroupMemberService;
 import com.mogen.im.service.group.service.GroupService;
+import com.mogen.im.service.seq.RedisSeq;
 import com.mogen.im.service.user.service.UserService;
+import com.mogen.im.service.utils.GroupMessageProducer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -29,11 +35,14 @@ public class GroupServiceImpl implements GroupService {
     private GroupRepository groupRepository;
 
     @Autowired
-    private UserService userService;
-
-    @Autowired
     @Lazy
     private GroupMemberService groupMemberService;
+
+    @Autowired
+    private GroupMessageProducer groupMessageProducer;
+
+    @Autowired
+    private RedisSeq redisSeq;
 
     @Override
     public ResponseVo importGroup(ImportGroupReq req) {
@@ -67,6 +76,8 @@ public class GroupServiceImpl implements GroupService {
     public ResponseVo createGroup(CreateGroupReq req) {
         Group group = new Group();
         BeanUtils.copyPropertiesIgnoreNull(req,group);
+        long seq = redisSeq.doGetSeq(req.getAppId() + ":" + Constants.SeqConstants.Group);
+        group.setSequence(seq);
         Group create = groupRepository.save(group);
 
         GroupMemberDto groupMemberDto = new GroupMemberDto();
@@ -74,6 +85,11 @@ public class GroupServiceImpl implements GroupService {
         groupMemberDto.setRole(GroupMemberRole.OWNER);
         groupMemberDto.setJoinTime(System.currentTimeMillis());
         groupMemberService.addGroupMember(create.getId(), req.getAppId(), groupMemberDto);
+        CreateGroupPack createGroupPack = new CreateGroupPack();
+        org.springframework.beans.BeanUtils.copyProperties(create, createGroupPack);
+        groupMessageProducer.producer(req.getOwnerId(), GroupEventAction.CREATED_GROUP, createGroupPack
+                , new ClientInfo(req.getAppId(), req.getClientType(), req.getImei()));
+
         return ResponseVo.successResponse();
     }
 
@@ -107,13 +123,19 @@ public class GroupServiceImpl implements GroupService {
         }
 
 
-
         Group group1 = new Group();
         BeanUtils.copyPropertiesIgnoreNull(req,group1);
-        Group insert = groupRepository.save(group1);
-        if(insert == null){
+        long seq = redisSeq.doGetSeq(req.getAppId() + ":" + Constants.SeqConstants.Group);
+        group1.setSequence(seq);
+        Group update = groupRepository.save(group1);
+        if(update == null){
             throw new ApplicationException(GroupErrorCode.UPDATE_GROUP_BASE_INFO_ERROR);
         }
+        UpdateGroupInfoPack pack = new UpdateGroupInfoPack();
+        update.setSequence(seq);
+        BeanUtils.copyPropertiesIgnoreNull(req, pack);
+        groupMessageProducer.producer(req.getOperator(), GroupEventAction.UPDATED_GROUP,
+                pack, new ClientInfo(req.getAppId(), req.getClientType(), req.getImei()));
 
         return ResponseVo.successResponse();
     }
@@ -126,20 +148,28 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    public ResponseVo destroyGroup(Integer groupId,Integer appId,String userId) {
-       Optional<Group> group = groupRepository.findById(groupId);
+    public ResponseVo destroyGroup(DestroyGroupReq destroyGroupReq) {
+       Optional<Group> group = groupRepository.findById(destroyGroupReq.getGroupId());
        if(!group.isPresent()){
            return ResponseVo.successResponse(GroupErrorCode.GROUP_IS_NOT_EXIST);
        }
 
-       if(!group.get().getOwnerId().equals(userId)){
+       if(!group.get().getOwnerId().equals(destroyGroupReq.getOperator())){
            return ResponseVo.errorResponse(GroupErrorCode.THIS_OPERATE_NEED_OWNER_ROLE);
        }
        if(group.get().getStatus().equals(GroupStatus.DESTROY)){
             return ResponseVo.errorResponse(GroupErrorCode.GROUP_IS_DESTROY);
        }
-       groupRepository.updateStatusById(GroupStatus.DESTROY,groupId);
-       return ResponseVo.successResponse();
+       long seq = redisSeq.doGetSeq(destroyGroupReq.getAppId() + ":" + Constants.SeqConstants.Group);
+       groupRepository.updateStatusById(GroupStatus.DESTROY,destroyGroupReq.getGroupId(),seq);
+        DestroyGroupPack pack = new DestroyGroupPack();
+        pack.setGroupId(destroyGroupReq.getGroupId());
+        pack.setSequence(seq);
+        groupMessageProducer.producer(destroyGroupReq.getOperator(),
+                GroupEventAction.DESTROY_GROUP, pack, new ClientInfo(destroyGroupReq.getAppId(),
+                        destroyGroupReq.getClientType(), destroyGroupReq.getImei()));
+
+        return ResponseVo.successResponse();
     }
 
     @Override
@@ -165,7 +195,8 @@ public class GroupServiceImpl implements GroupService {
         if(group.get().getStatus().equals(GroupStatus.DESTROY)){
             return ResponseVo.errorResponse(GroupErrorCode.GROUP_IS_DESTROY);
         }
-        groupRepository.updateOwnerIdById(req.getOwnerId(),req.getGroupId());
+        long seq = redisSeq.doGetSeq(req.getAppId() + ":" + Constants.SeqConstants.Group);
+        groupRepository.updateOwnerIdById(req.getOwnerId(),req.getGroupId(),seq);
         groupMemberService.transferGroupMember(req.getOwnerId(),req.getGroupId(),req.getAppId());
         return ResponseVo.successResponse();
     }
@@ -194,13 +225,42 @@ public class GroupServiceImpl implements GroupService {
         if (!data.getRole().equals(GroupMemberRole.MANAGER) || !data.getRole().equals(GroupMemberRole.OWNER)) {
             throw new ApplicationException(GroupErrorCode.THIS_OPERATE_NEED_MANAGER_ROLE);
         }
-
-        groupRepository.updateMuteById(req.getMute(),req.getGroupId());
+        long seq = redisSeq.doGetSeq(req.getAppId() + ":" + Constants.SeqConstants.Group);
+        groupRepository.updateMuteById(req.getMute(),req.getGroupId(),seq);
         return ResponseVo.successResponse();
     }
 
     @Override
     public Long getUserGroupMaxSeq(String userId, Integer appId) {
-        return null;
+        ResponseVo<List<Integer>> groupIds = groupMemberService.syncMemberJoinedGroup(userId,appId);
+        if(groupIds.getData().isEmpty()){
+            return 0L;
+        }
+        return  groupRepository.findMaxSequenceByIdIn(groupIds.getData());
+
+    }
+
+    @Override
+    public ResponseVo syncJoinedGroupList(SyncReq syncReq) {
+        if(syncReq.getMaxLimit() > 100){
+            syncReq.setMaxLimit(100);
+        }
+        ResponseVo<List<Integer>> groupIds = groupMemberService.syncMemberJoinedGroup(syncReq.getOperator(),syncReq.getAppId());
+        if(groupIds.getData().isEmpty()){
+            return ResponseVo.successResponse();
+        }
+        List<Group> groups = groupRepository.findByMaxSeqGroupIdInLimit(groupIds.getData(),syncReq.getLastSequence(),syncReq.getMaxLimit());
+        if(groups != null && groups.isEmpty()){
+            SyncResp syncResp = new SyncResp();
+            BeanUtils.copyPropertiesIgnoreNull(syncReq,syncResp);
+            Long maxSeq = groupRepository.findMaxSequenceByIdIn(groupIds.getData());
+            Group lastGroup = groups.get(groups.size() - 1);
+            syncResp.setDataList(groups);
+            syncResp.setMaxSequence(lastGroup.getSequence());
+            syncResp.setCompleted(lastGroup.getSequence() >= maxSeq);
+            return  ResponseVo.successResponse(syncResp);
+        }
+        return ResponseVo.successResponse();
+
     }
 }

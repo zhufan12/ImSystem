@@ -1,6 +1,6 @@
 package com.mogen.im.service.friendship.repository;
 
-import com.mogen.im.common.enums.FriendShipStatusEnum;
+import com.mogen.im.common.enums.FriendShipStatus;
 import com.mogen.im.service.friendship.entity.FriendShip;
 import com.mogen.im.service.friendship.entity.FriendShipId;
 import com.mogen.im.service.friendship.model.resp.CheckFriendShipResp;
@@ -19,17 +19,17 @@ public interface FriendShipRepository extends JpaRepository<FriendShip, FriendSh
     Optional<FriendShip> findById(FriendShipId friendShipId);
 
     @Modifying
-    @Query(value = "UPDATE FriendShip SET status = :statusEnum WHERE appId = :#{#friendShipId.appId} and fromId = :#{#friendShipId.fromId} and  toId = :#{#friendShipId.toId} ")
-    int updateStatusById(FriendShipStatusEnum statusEnum,@Param("friendShipId") FriendShipId friendShipId);
+    @Query(value = "UPDATE FriendShip SET status = :statusEnum,friendSequence = :seq WHERE appId = :#{#friendShipId.appId} and fromId = :#{#friendShipId.fromId} and  toId = :#{#friendShipId.toId} ")
+    int updateStatusById(FriendShipStatus statusEnum, @Param("friendShipId") FriendShipId friendShipId,long seq);
 
     @Modifying
-    @Query(value = "UPDATE FriendShip SET black = :statusEnum WHERE appId = :#{#friendShipId.appId} and fromId = :#{#friendShipId.fromId} and  toId = :#{#friendShipId.toId} ")
-    int updateBlackById(FriendShipStatusEnum statusEnum,@Param("friendShipId") FriendShipId friendShipId);
+    @Query(value = "UPDATE FriendShip SET black = :statusEnum,friendSequence = :seq  WHERE appId = :#{#friendShipId.appId} and fromId = :#{#friendShipId.fromId} and  toId = :#{#friendShipId.toId} ")
+    int updateBlackById(FriendShipStatus statusEnum, @Param("friendShipId") FriendShipId friendShipId,long seq);
 
 
     @Modifying
     @Query("UPDATE FriendShip SET status = :friendShipStatusEnum WHERE status = 1 AND fromId = :fromId AND appId = :appId")
-    int updateStatusByStatusAndFromId(FriendShipStatusEnum friendShipStatusEnum, String fromId,Integer appId);
+    int updateStatusByStatusAndFromId(FriendShipStatus friendShipStatusEnum, String fromId, Integer appId);
 
     @Query(value = "SELECT * FROM `im-friend-ship` WHERE from_id = :fromId AND app_id = :appId",nativeQuery = true)
     List<FriendShip> findAllFriendShopByFromIdAndAppId(String fromId, Integer appId);
@@ -85,5 +85,12 @@ public interface FriendShipRepository extends JpaRepository<FriendShip, FriendSh
             " ) AS b " +
             " on a.from_id = b.to_id AND b.from_id = a.to_id ")
     List<CheckFriendShipResp> checkBothFriendShipBlackByFromIdAndToIds(String fromId,Integer appId,List<String> toId);
+
+
+    @Query("SELECT * FROM FriendShip WHERE fromId = :fromId AND appId =:appId AND friendSequence > :maxSeq limit :limit orderBy friendSequence")
+    List<FriendShip> findBySeqAndLimit(String fromId,Integer appId,Long maxSeq,Integer limit);
+
+    @Query("SELECT MAX(friendSequence) FROM FriendShip WHERE formId =:formId AND appId =: appId ")
+    Long findMaxSeqByFromIdAndAppId(String fromId,Integer appId);
 }
 

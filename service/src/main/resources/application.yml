@@ -1,9 +1,5 @@
 
-
-
 spring:
-  jackson:
-    property-naming-strategy: SNAKE_CASE
   profiles:
     active: dev
   datasource:
@@ -15,18 +11,64 @@ spring:
     database: mysql
     show-sql: true
     hibernate:
-      ddl-auto: none
+      ddl-auto:
     properties:
       hibernate:
         enable_lazy_load_no_trans: true
         dialect: org.hibernate.dialect.MySQLDialect
         jdbc:
           time_zone: UTC
+  rabbitmq:
+    host: localhost
+    port: 5672
+    addresses: localhost
+    username: admin
+    password: pass.123
+    listener:
+      direct:
+        acknowledge-mode: manual
+      simple:
+        acknowledge-mode: manual
   application:
     name: im-system
+  data:
+    redis:
+      port: 6379
+      jedis:
+        pool:
+          max-active: 100
+          max-idle: 100
+          max-wait: 1000
+          min-idle: 10
+      password:
+  sql:
+    init:
+      schema-locations: classpath:db/*.sql
+
 
 logging:
   config: classpath:logback-spring.xml
 
 server:
   port: 8000
+
+appConfig:
+  appId: 10000
+  privateKey: 123456
+  zkAddr: 127.0.0.1:2181
+  zkConnectTimeOut: 50000
+  sleepMsBetweenRetries: 100
+  maxRetries: 3
+  sessionTimeoutMs: 3000
+  imRouteWay: HASH
+  consistentHashWay: TREE
+
+
+
+httpclient:
+  maxTotal: 100
+  defaultMaxPerRoute: 50
+  connectTimeout: 2000
+  connectionRequestTimeout: 2000
+  socketTimeout: 5000
+  staleConnectionCheckEnabled: true

@@ -1,14 +1,13 @@
 package com.mogen.im.service.group.controller;
 
 import com.mogen.im.common.ResponseVo;
+import com.mogen.im.common.model.SyncReq;
 import com.mogen.im.service.group.modle.req.*;
+import com.mogen.im.service.group.service.GroupMessageServer;
 import com.mogen.im.service.group.service.GroupService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("v1/group")
@@ -17,6 +16,10 @@ public class GroupController {
 
     @Autowired
     private GroupService groupService;
+
+
+    @Autowired
+    private GroupMessageServer groupMessageServer;
 
 
     @RequestMapping("/importGroup")
@@ -54,8 +57,9 @@ public class GroupController {
     }
 
     @RequestMapping("/destroyGroup/{groupId}")
-    public ResponseVo destroyGroup(@PathVariable("groupId")Integer groupId, Integer appId, String identifier)  {
-        return groupService.destroyGroup(groupId, appId,identifier);
+    public ResponseVo destroyGroup(@RequestBody @Validated DestroyGroupReq destroyGroupReq,String identifier)  {
+        destroyGroupReq.setOperator(identifier);
+        return groupService.destroyGroup(destroyGroupReq);
     }
 
     @RequestMapping("/transferGroup")
@@ -71,6 +75,22 @@ public class GroupController {
         req.setAppId(appId);
         req.setOperator(identifier);
         return groupService.muteGroup (req);
+    }
+
+
+    @RequestMapping("/sendMessage")
+    public ResponseVo sendMessage(@RequestBody @Validated SendGroupMessageReq
+                                          req, Integer appId,
+                                  String identifier)  {
+        req.setAppId(appId);
+        req.setOperator(identifier);
+        return ResponseVo.successResponse(groupMessageServer.send(req));
+    }
+
+    @RequestMapping("/syncJoinedGroup")
+    public ResponseVo syncJoinedGroup(@RequestBody @Validated SyncReq req, Integer appId, String identifier)  {
+        req.setAppId(appId);
+        return groupService.syncJoinedGroupList(req);
     }
 
 

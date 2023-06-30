@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.mogen</groupId>
+    <groupId>com.mogen</groupId>
     <artifactId>imSystem</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
@@ -22,13 +22,10 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <hutool.version>5.0.6</hutool.version>
         <redisson.version>3.15.6</redisson.version>
-        <protostuff-api>1.0.10</protostuff-api>
-        <zkClient.version>0.1</zkClient.version>
-        <apache.httpclient.version>4.5.9</apache.httpclient.version>
-        <rabbit.client.version>5.6.0</rabbit.client.version>
+        <rabbit.client.version>5.16.0</rabbit.client.version>
         <apache.commons.version>3.12.0</apache.commons.version>
         <springboot.version>3.1.0</springboot.version>
-        <netty.version>4.1.35.Final</netty.version>
+        <netty.version>4.1.91.Final</netty.version>
         <feign.version>8.18.0</feign.version>
     </properties>
 
@@ -106,26 +103,6 @@
             </dependency>
 
 
-            <!-- hutool -->
-            <dependency>
-                <groupId>cn.hutool</groupId>
-                <artifactId>hutool-all</artifactId>
-                <version>${hutool.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>org.apache.httpcomponents</groupId>
-                <artifactId>httpclient</artifactId>
-                <version>${apache.httpclient.version}</version>
-            </dependency>
-
-            <!--  zkClient -->
-            <dependency>
-                <groupId>com.github.sgroschupf</groupId>
-                <artifactId>zkclient</artifactId>
-                <version>${zkClient.version}</version>
-            </dependency>
-
             <!-- netty -->
             <dependency>
                 <groupId>io.netty</groupId>
@@ -133,7 +110,6 @@
                 <version>${netty.version}</version>
             </dependency>
 
-            <!-- feign调用依赖 -->
             <dependency>
                 <groupId>com.netflix.feign</groupId>
                 <artifactId>feign-core</artifactId>
@@ -154,6 +130,8 @@
     <modules>
         <module>common</module>
         <module>service</module>
+        <module>tcp</module>
+        <module>codec</module>
     </modules>
 
 </project>

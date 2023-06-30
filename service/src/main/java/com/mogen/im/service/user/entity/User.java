@@ -2,8 +2,10 @@ package com.mogen.im.service.user.entity;
 
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.mogen.im.common.enums.AllowFriendTypeEnum;
-import com.mogen.im.common.enums.DelFlagEnum;
+import com.mogen.im.common.enums.AllowFriendType;
+import com.mogen.im.common.enums.DelFlag;
+import com.mogen.im.common.enums.UserForbiddenFlagType;
+import com.mogen.im.common.enums.UserSilentFlagType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -44,23 +46,25 @@ public class User {
 
     @Column
     @Enumerated
-    private AllowFriendTypeEnum friendAllowType;
+    private AllowFriendType friendAllowType;
 
     @Column
     private Integer disableAddFriend;
 
     @Column
-    private Integer forbiddenFlag;
+    @Enumerated
+    private UserForbiddenFlagType forbiddenFlag;
 
     @Column
-    private Integer silentFlag;
+    @Enumerated
+    private UserSilentFlagType silentFlag;
     @Column
     private Integer userType;
     @Column
     private Integer appId;
     @Column
     @Embedded
-    private DelFlagEnum delFlag;
+    private DelFlag delFlag;
     @Column
     private String extra;
 }

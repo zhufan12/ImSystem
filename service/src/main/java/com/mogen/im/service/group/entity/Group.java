@@ -26,7 +26,8 @@ public class Group implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer Id;
+    private Integer id;
+
     @Column
     private Integer appId;
 

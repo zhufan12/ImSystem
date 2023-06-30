@@ -1,9 +1,11 @@
 package com.mogen.im.service.group.service;
 
 import com.mogen.im.common.ResponseVo;
+import com.mogen.im.service.group.entity.GroupMember;
 import com.mogen.im.service.group.modle.req.*;
 import com.mogen.im.service.group.modle.resp.GetRoleInGroupResp;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface GroupMemberService {
@@ -22,6 +24,8 @@ public interface GroupMemberService {
 
     public ResponseVo exitGroup(ExitGroupReq req);
 
+    public List<String> getGroupMemberId(Integer groupId);
+
     public ResponseVo<GetRoleInGroupResp> getRoleInGroupOne(Integer groupId, String userId, Integer appId);
 
     public ResponseVo transferGroupMember(String owner, Integer groupId, Integer appId);
@@ -32,6 +36,11 @@ public interface GroupMemberService {
 
     public ResponseVo speak(SpeakMemberReq req);
 
+
+     public List<GroupMember> getGroupManager(Integer groupId);
+
+
+    public ResponseVo<List<Integer>> syncMemberJoinedGroup(String memberId, Integer appId);
 
 
 }

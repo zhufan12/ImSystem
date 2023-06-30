@@ -1,6 +1,6 @@
 package com.mogen.im.service.friendship.entity;
 
-import com.mogen.im.common.enums.DelFlagEnum;
+import com.mogen.im.common.enums.DelFlag;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -40,5 +40,5 @@ public class FriendShipGroup {
 
     @Column
     @Enumerated
-    private DelFlagEnum delFlag;
+    private DelFlag delFlag;
 }

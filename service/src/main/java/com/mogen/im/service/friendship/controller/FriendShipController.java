@@ -1,6 +1,7 @@
 package com.mogen.im.service.friendship.controller;
 
 import com.mogen.im.common.ResponseVo;
+import com.mogen.im.common.model.SyncReq;
 import com.mogen.im.service.friendship.model.req.*;
 import com.mogen.im.service.friendship.service.FriendShipService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -84,6 +85,13 @@ public class FriendShipController {
     public ResponseVo checkBlack(@RequestBody @Validated CheckFriendShipReq req, Integer appId){
         req.setAppId(appId);
         return friendShipService.checkBlack(req);
+    }
+
+    @RequestMapping("/syncFriendshipList")
+    public ResponseVo syncFriendshipList(@RequestBody @Validated
+                                         SyncReq req, Integer appId){
+        req.setAppId(appId);
+        return friendShipService.syncFriendshipList(req);
     }
 
 

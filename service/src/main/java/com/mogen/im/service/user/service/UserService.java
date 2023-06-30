@@ -1,5 +1,6 @@
 package com.mogen.im.service.user.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.mogen.im.common.ResponseVo;
 import com.mogen.im.service.user.model.req.*;
 
